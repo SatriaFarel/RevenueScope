@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RevenueScope — Dasbor Eksekutif Penjualan</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <!-- PapaParse -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- Plus Jakarta Sans -->
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bg:      '#0B0F17',
+            card:    '#151C28',
+            cardHov: '#1A2234',
+            border:  '#1F2D42',
+            emerald: '#10B981',
+            amber:   '#F59E0B',
+            danger:  '#EF4444',
+            muted:   '#8898AA',
+            text:    '#E2E8F0',
+          },
+          fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* ── Base ── */
+    *, *::before, *::after { box-sizing: border-box; }
+    body { background:#0B0F17; color:#E2E8F0; font-family:'Plus Jakarta Sans',sans-serif; }
+    ::-webkit-scrollbar { width:6px; height:6px; }
+    ::-webkit-scrollbar-track { background:#0B0F17; }
+    ::-webkit-scrollbar-thumb { background:#1F2D42; border-radius:3px; }
+
+    /* ── Bento card ── */
+    .bento { background:#151C28; border:1px solid #1F2D42; border-radius:16px; }
+
+    /* ── KPI typography ── */
+    .kpi-val { font-size:1.75rem; font-weight:800; line-height:1.1; letter-spacing:-0.03em; }
+    .kpi-label { font-size:0.68rem; font-weight:700; letter-spacing:0.09em; text-transform:uppercase; color:#8898AA; }
+
+    /* ── Risk badges ── */
+    .badge-danger { background:rgba(239,68,68,0.15);  color:#EF4444; border:1px solid rgba(239,68,68,0.35);  font-size:0.62rem; font-weight:700; padding:2px 6px; border-radius:99px; white-space:nowrap; }
+    .badge-amber  { background:rgba(245,158,11,0.15); color:#F59E0B; border:1px solid rgba(245,158,11,0.35); font-size:0.62rem; font-weight:700; padding:2px 6px; border-radius:99px; white-space:nowrap; }
+    .badge-ok     { background:rgba(16,185,129,0.12); color:#10B981; border:1px solid rgba(16,185,129,0.3);  font-size:0.62rem; font-weight:700; padding:2px 6px; border-radius:99px; white-space:nowrap; }
+
+    /* ── Form controls ── */
+    .filter-select {
+      background:#151C28; border:1px solid #1F2D42; color:#E2E8F0;
+      border-radius:8px; padding:6px 10px; font-size:0.78rem;
+      font-family:'Plus Jakarta Sans',sans-serif; outline:none; cursor:pointer;
+    }
+    .filter-select:focus { border-color:#10B981; }
+    .search-input {
+      background:#151C28; border:1px solid #1F2D42; color:#E2E8F0;
+      border-radius:8px; padding:7px 12px; font-size:0.78rem;
+      font-family:'Plus Jakarta Sans',sans-serif; outline:none; width:220px;
+    }
+    .search-input:focus { border-color:#10B981; }
+    .search-input::placeholder { color:#8898AA; }
+
+    /* ── Buttons ── */
+    .btn { display:inline-flex; align-items:center; gap:6px; font-size:0.75rem; font-weight:700;
+           font-family:'Plus Jakarta Sans',sans-serif; border-radius:8px; padding:7px 13px;
+           cursor:pointer; border:1px solid transparent; transition:opacity 0.15s; }
+    .btn:hover { opacity:0.85; }
+    .btn-emerald { background:rgba(16,185,129,0.15); color:#10B981; border-color:rgba(16,185,129,0.35); }
+    .btn-amber   { background:rgba(245,158,11,0.15); color:#F59E0B; border-color:rgba(245,158,11,0.35); }
+    .btn-indigo  { background:rgba(99,102,241,0.15); color:#818CF8; border-color:rgba(99,102,241,0.35); }
+    .btn-muted   { background:rgba(136,152,170,0.12); color:#8898AA; border-color:rgba(136,152,170,0.25); }
+    .btn-danger  { background:rgba(239,68,68,0.15); color:#EF4444; border-color:rgba(239,68,68,0.35); }
+
+    /* ── Tooltip ── */
+    .tooltip-wrap { position:relative; display:inline-flex; align-items:center; }
+    .tooltip-icon { width:14px; height:14px; border-radius:50%; background:rgba(136,152,170,0.2);
+                    color:#8898AA; font-size:9px; font-weight:700; display:inline-flex;
+                    align-items:center; justify-content:center; cursor:help; margin-left:5px; }
+    .tooltip-text { display:none; position:absolute; left:50%; transform:translateX(-50%);
+                    bottom:calc(100% + 6px); background:#1A2234; border:1px solid #1F2D42;
+                    color:#E2E8F0; font-size:0.7rem; padding:6px 9px; border-radius:8px;
+                    white-space:nowrap; z-index:99; pointer-events:none; line-height:1.4; max-width:220px; white-space:normal; }
+    .tooltip-wrap:hover .tooltip-text { display:block; }
+
+    /* ── Table ── */
+    table { border-collapse:collapse; width:100%; }
+    thead th { font-size:0.67rem; font-weight:700; letter-spacing:0.07em; text-transform:uppercase;
+               color:#8898AA; padding:10px 11px; border-bottom:1px solid #1F2D42; white-space:nowrap; }
+    tbody tr { border-bottom:1px solid rgba(31,45,66,0.5); transition:background 0.15s; }
+    tbody tr:hover { background:#1A2234; }
+    tbody td { font-size:0.77rem; padding:9px 11px; white-space:nowrap; }
+    .sort-btn { cursor:pointer; user-select:none; }
+    .sort-btn:hover { color:#10B981; }
+
+    /* ── Pagination buttons ── */
+    .pg-btn { background:#151C28; border:1px solid #1F2D42; color:#E2E8F0;
+              border-radius:6px; padding:4px 10px; font-size:0.75rem; cursor:pointer; }
+    .pg-btn:hover { border-color:#10B981; color:#10B981; }
+    .pg-btn:disabled { opacity:0.3; cursor:default; }
+
+    /* ── Drag-drop zone ── */
+    #dropZone { transition:border-color 0.2s, background 0.2s; }
+    #dropZone.drag-over { border-color:#10B981 !important; background:rgba(16,185,129,0.06) !important; }
+
+    /* ── Toast ── */
+    #toast { position:fixed; bottom:24px; right:24px; z-index:999; background:#1A2234;
+             border:1px solid #1F2D42; color:#E2E8F0; font-size:0.8rem; padding:12px 18px;
+             border-radius:10px; opacity:0; transform:translateY(8px);
+             transition:opacity 0.25s, transform 0.25s; pointer-events:none; }
+    #toast.show { opacity:1; transform:translateY(0); }
+
+    /* ── Print styles ── */
+    @media print {
+      body { background:#fff !important; color:#000 !important; font-size:10pt; }
+      #actionBar, #filterBar, #tableSearch, #paginationBar, #dropSection, #toast { display:none !important; }
+      .bento { background:#fff !important; border:1px solid #ccc !important; break-inside:avoid; }
+      .kpi-val { color:#000 !important; }
+      .kpi-label { color:#555 !important; }
+      .badge-ok     { background:#d1fae5 !important; color:#065f46 !important; border-color:#6ee7b7 !important; }
+      .badge-amber  { background:#fef3c7 !important; color:#92400e !important; border-color:#fcd34d !important; }
+      .badge-danger { background:#fee2e2 !important; color:#991b1b !important; border-color:#fca5a5 !important; }
+      table { font-size:8pt; }
+      thead th { color:#333 !important; }
+      tbody td { color:#000 !important; }
+      #printTitle { display:block !important; }
+      canvas { max-width:100% !important; }
+      .grid { break-inside:avoid; }
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+
+  <!-- ── Print Title (hidden on screen) ── -->
+  <div id="printTitle" style="display:none;" class="mb-4">
+    <h1 style="font-size:18pt;font-weight:800;">RevenueScope — Laporan Penjualan Eksekutif FY 2023</h1>
+    <p style="font-size:9pt;color:#555;">Dicetak: <span id="printDate"></span></p>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       HEADER
+  ══════════════════════════════════════════ -->
+  <header class="flex items-center justify-between mb-4">
+    <div>
+      <div class="flex items-center gap-2">
+        <span class="text-emerald font-black text-xl tracking-tight">Revenue<span class="text-text">Scope</span></span>
+        <span class="text-xs font-semibold bg-emerald/10 text-emerald border border-emerald/30 rounded-full px-2 py-0.5">LIVE</span>
+      </div>
+      <p class="text-muted text-xs mt-0.5">Dasbor Eksekutif Penjualan &amp; Profitabilitas · TA 2023</p>
+    </div>
+    <div class="text-right hidden sm:block">
+      <p class="text-xs text-muted">Pembaruan terakhir</p>
+      <p id="lastUpdated" class="text-xs font-semibold text-text"></p>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════════
+       ACTION BAR (Import · Export · Print)
+  ══════════════════════════════════════════ -->
+  <div id="actionBar" class="bento p-3 mb-4 flex flex-wrap gap-3 items-center">
+    <!-- Hidden file input -->
+    <input type="file" id="fileInput" accept=".csv,.json" class="hidden" />
+
+    <!-- Import -->
+    <button id="btnImport" class="btn btn-emerald" title="Impor file CSV atau JSON">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+      Impor Data
+    </button>
+
+    <!-- Export CSV -->
+    <button id="btnExportCSV" class="btn btn-amber">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5 5 5M12 4v11"/></svg>
+      Ekspor CSV
+    </button>
+
+    <!-- Export JSON -->
+    <button id="btnExportJSON" class="btn btn-indigo">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5 5 5M12 4v11"/></svg>
+      Ekspor JSON
+    </button>
+
+    <!-- Print / PDF -->
+    <button id="btnPrint" class="btn btn-muted">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm0-16h6v4H9V3z"/></svg>
+      Cetak / PDF
+    </button>
+
+    <!-- Data source badge -->
+    <span id="dataSourceBadge" class="ml-auto text-xs font-semibold text-amber border border-amber/30 bg-amber/10 rounded-full px-3 py-1">
+      📋 Data Contoh
+    </span>
+    <span id="filteredCount" class="text-xs text-muted"></span>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       DRAG-DROP ZONE (collapsible)
+  ══════════════════════════════════════════ -->
+  <div id="dropSection" class="mb-4 hidden">
+    <div id="dropZone"
+         class="bento border-2 border-dashed border-border p-8 flex flex-col items-center justify-center gap-3 cursor-pointer"
+         style="border-color:#1F2D42;">
+      <svg class="w-10 h-10 text-muted" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z"/>
+      </svg>
+      <p class="text-sm font-semibold text-text">Seret &amp; Lepas file CSV atau JSON ke sini</p>
+      <p class="text-xs text-muted">Atau klik tombol <strong>Impor Data</strong> di atas. Kolom yang diperlukan: Sale_Date, Sales_Rep, Region, Sales_Amount, Quantity_Sold, Product_Category, Unit_Cost, Unit_Price, Customer_Type, Discount, Payment_Method, Sales_Channel.</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       FILTER BAR
+  ══════════════════════════════════════════ -->
+  <div id="filterBar" class="bento p-3 mb-5 flex flex-wrap gap-3 items-center">
+    <span class="text-xs font-semibold text-muted uppercase tracking-widest mr-1">Filter</span>
+    <select id="fRegion"   class="filter-select"><option value="">Semua Wilayah</option></select>
+    <select id="fChannel"  class="filter-select"><option value="">Semua Saluran</option></select>
+    <select id="fCategory" class="filter-select"><option value="">Semua Kategori</option></select>
+    <select id="fCustomer" class="filter-select"><option value="">Semua Pelanggan</option></select>
+    <button id="resetFilters" class="btn btn-danger">Reset</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       KPI ROW — 4 cards
+  ══════════════════════════════════════════ -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+
+    <!-- Total Pendapatan -->
+    <div class="bento p-5">
+      <div class="tooltip-wrap kpi-label mb-3">
+        Total Pendapatan
+        <span class="tooltip-icon">?</span>
+        <span class="tooltip-text">Total pendapatan efektif setelah diskon: Qty × Harga Jual × (1 − Diskon)</span>
+      </div>
+      <p id="kpiRevenue" class="kpi-val text-text">—</p>
+      <p id="kpiRevenueAvg" class="text-xs text-muted mt-1"></p>
+    </div>
+
+    <!-- Keuntungan Bersih -->
+    <div class="bento p-5">
+      <div class="tooltip-wrap kpi-label mb-3">
+        Keuntungan Bersih
+        <span class="tooltip-icon">?</span>
+        <span class="tooltip-text">Laba bersih: Qty × (Harga Jual × (1−Diskon) − Harga Modal)</span>
+      </div>
+      <p id="kpiProfit" class="kpi-val text-emerald">—</p>
+      <p id="kpiMargin" class="text-xs text-muted mt-1"></p>
+    </div>
+
+    <!-- Rata-rata Diskon -->
+    <div class="bento p-5">
+      <div class="tooltip-wrap kpi-label mb-3">
+        Rata-rata Diskon
+        <span class="tooltip-icon">?</span>
+        <span class="tooltip-text">Rata-rata persentase diskon dari seluruh transaksi yang ditampilkan saat ini.</span>
+      </div>
+      <p id="kpiDiscount" class="kpi-val text-amber">—</p>
+      <p id="kpiDiscountSub" class="text-xs text-muted mt-1"></p>
+    </div>
+
+    <!-- Sales Rep & Produk Terlaris -->
+    <div class="bento p-5">
+      <div class="tooltip-wrap kpi-label mb-3">
+        Kontribusi Sales Rep
+        <span class="tooltip-icon">?</span>
+        <span class="tooltip-text">Sales rep dengan total pendapatan tertinggi dan kategori produk dengan kontribusi terbesar.</span>
+      </div>
+      <p id="kpiTopRep" class="text-base font-bold text-text leading-tight">—</p>
+      <p id="kpiTopCat" class="text-xs text-muted mt-1"></p>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       MAIN BENTO GRID
+  ══════════════════════════════════════════ -->
+  <div class="grid grid-cols-12 gap-4 mb-5">
+
+    <!-- Tren Penjualan Bulanan (8 cols) -->
+    <div class="bento p-5 col-span-12 lg:col-span-8">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <p class="text-sm font-bold">Tren Penjualan vs Keuntungan Bersih</p>
+          <p class="text-xs text-muted">Performa bulanan sepanjang 2023</p>
+        </div>
+        <div class="flex gap-4 text-xs">
+          <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-emerald inline-block rounded"></span>Pendapatan</span>
+          <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-amber inline-block rounded" style="border-top:2px dashed #F59E0B;"></span>Keuntungan</span>
+        </div>
+      </div>
+      <div class="relative" style="height:230px;"><canvas id="trendChart"></canvas></div>
+    </div>
+
+    <!-- Segmen Pelanggan (4 cols) -->
+    <div class="bento p-5 col-span-12 lg:col-span-4 flex flex-col">
+      <p class="text-sm font-bold mb-1">Segmen Pelanggan</p>
+      <p class="text-xs text-muted mb-4">Kontribusi pendapatan per tipe pelanggan</p>
+      <div id="segmentBars" class="flex-1 flex flex-col justify-center gap-4"></div>
+    </div>
+
+    <!-- Papan Peringkat Sales Rep (5 cols) -->
+    <div class="bento p-5 col-span-12 lg:col-span-5">
+      <p class="text-sm font-bold mb-1">Papan Peringkat Sales Rep</p>
+      <p class="text-xs text-muted mb-4">Diurutkan berdasarkan pendapatan &amp; keuntungan</p>
+      <div class="relative" style="height:220px;"><canvas id="repChart"></canvas></div>
+    </div>
+
+    <!-- Distribusi Kategori Produk (3 cols) -->
+    <div class="bento p-5 col-span-12 lg:col-span-3 flex flex-col">
+      <p class="text-sm font-bold mb-1">Kategori Produk</p>
+      <p class="text-xs text-muted mb-3">Porsi pendapatan per kategori</p>
+      <div class="flex items-center justify-center" style="height:160px;">
+        <canvas id="categoryChart"></canvas>
+      </div>
+      <div id="categoryLegend" class="mt-3 flex flex-col gap-1.5"></div>
+    </div>
+
+    <!-- Saluran Penjualan (2 cols) -->
+    <div class="bento p-5 col-span-12 lg:col-span-2 flex flex-col">
+      <p class="text-sm font-bold mb-1">Saluran</p>
+      <p class="text-xs text-muted mb-3">Online vs Retail</p>
+      <div class="flex items-center justify-center" style="height:160px;">
+        <canvas id="channelChart"></canvas>
+      </div>
+      <div id="channelLegend" class="mt-3 flex flex-col gap-1.5"></div>
+    </div>
+
+    <!-- Metode Pembayaran (2 cols) -->
+    <div class="bento p-5 col-span-12 lg:col-span-2 flex flex-col">
+      <p class="text-sm font-bold mb-1">Pembayaran</p>
+      <p class="text-xs text-muted mb-3">Metode transaksi</p>
+      <div class="flex items-center justify-center" style="height:160px;">
+        <canvas id="paymentChart"></canvas>
+      </div>
+      <div id="paymentLegend" class="mt-3 flex flex-col gap-1.5"></div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       TRANSACTION AUDIT TABLE
+  ══════════════════════════════════════════ -->
+  <div class="bento p-5">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div>
+        <p class="text-sm font-bold">Log Audit Transaksi</p>
+        <p class="text-xs text-muted">Cari real-time · urutkan kolom · penandaan risiko otomatis</p>
+      </div>
+      <div class="flex items-center gap-3" id="tableSearch">
+        <input id="tableSearchInput" class="search-input" placeholder="Cari rep, wilayah, kategori…" />
+        <span class="text-xs text-muted" id="tableCountLabel"></span>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table id="auditTable">
+        <thead>
+          <tr>
+            <th class="sort-btn" data-col="Sale_Date">Tanggal ↕</th>
+            <th class="sort-btn" data-col="Sales_Rep">Sales Rep ↕</th>
+            <th class="sort-btn" data-col="Region">Wilayah ↕</th>
+            <th class="sort-btn" data-col="Product_Category">Kategori ↕</th>
+            <th class="sort-btn" data-col="Sales_Channel">Saluran ↕</th>
+            <th class="sort-btn" data-col="Customer_Type">Pelanggan ↕</th>
+            <th class="sort-btn" data-col="Payment_Method">Pembayaran ↕</th>
+            <th class="sort-btn text-right" data-col="Revenue">Pendapatan ↕</th>
+            <th class="sort-btn text-right" data-col="netProfit">Keuntungan ↕</th>
+            <th class="sort-btn text-right" data-col="profitMargin">Margin ↕</th>
+            <th class="sort-btn text-right" data-col="Discount">Diskon ↕</th>
+            <th>Risiko</th>
+          </tr>
+        </thead>
+        <tbody id="auditBody"></tbody>
+      </table>
+    </div>
+    <div id="paginationBar" class="flex flex-wrap items-center justify-between mt-4 gap-3">
+      <div class="flex items-center gap-2">
+        <button id="pgPrev" class="pg-btn">← Sebelumnya</button>
+        <span id="pgInfo" class="text-xs text-muted px-2"></span>
+        <button id="pgNext" class="pg-btn">Berikutnya →</button>
+      </div>
+      <div class="flex flex-wrap gap-3 text-xs text-muted">
+        <span><span class="badge-danger">RISIKO TINGGI</span> Diskon &gt;20% &amp; Margin &lt;5%</span>
+        <span><span class="badge-amber">PERHATIAN</span> Diskon &gt;20% atau Margin &lt;5%</span>
+        <span><span class="badge-ok">SEHAT</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="text-center text-xs text-muted mt-8 pb-4">
+    RevenueScope · Dibangun dengan Chart.js, PapaParse &amp; Tailwind CSS · Dasbor Eksekutif TA 2023
+  </footer>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
